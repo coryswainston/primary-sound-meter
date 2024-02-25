@@ -327,7 +327,16 @@ class _AppState extends State<App> {
                           left: position,
                           bottom: 0,
                           child: Image.asset(
-                            'assets/${currentSong!.pictures[0]}',
+                            'assets/${currentSong!.character}',
+                            height: 200,
+                          ),
+                        ),
+                      if (currentSong != null && currentSong!.goal != null)
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Image.asset(
+                            'assets/${currentSong!.goal}',
                             height: 200,
                           ),
                         ),

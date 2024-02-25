@@ -2,11 +2,15 @@ class Song {
   final String title;
   final List<String> lines;
   final List<String> pictures;
+  final String? goal;
+  final String character;
 
   const Song({
     required this.title,
     required this.lines,
     required this.pictures,
+    this.goal,
+    required this.character,
   }) : assert(lines.length == pictures.length);
 }
 
@@ -32,6 +36,8 @@ final nephisCourage1 = Song(
     'nephis_courage_1_7.png',
     'nephis_courage_1_8.png',
   ],
+  character: 'nephis_courage_1_character.png',
+  goal: 'nephis_courage_1_goal.png',
 );
 
 final nephisCourage2 = Song(
@@ -56,4 +62,5 @@ final nephisCourage2 = Song(
     'nephis_courage_2_7.png',
     'nephis_courage_2_8.png',
   ],
+  character: 'nephis_courage_2_character.png',
 );
