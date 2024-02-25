@@ -11,7 +11,7 @@ class SemiCircleMeter extends StatelessWidget {
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: value),
-      duration: const Duration(seconds: 2),
+      duration: const Duration(seconds: 1),
       builder: (context, value, child) {
         return CustomPaint(
           size: const Size(500, 250), // Size of the semi-circle

@@ -376,10 +376,10 @@ class _AppState extends State<App> {
       return 'Soft';
     } else if (loudness < 0.55) {
       return 'Medium';
-    } else if (loudness < 0.7) {
+    } else if (loudness < 0.8) {
       return 'Medium Loud';
-    } else if (loudness < 0.85) {
-      return 'Loud';
+    } else if (loudness < 0.95) {
+      return 'Loud!';
     } else {
       return 'Very loud!';
     }
