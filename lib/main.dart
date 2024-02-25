@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:record/record.dart';
+import 'package:soundmeter/meter.dart';
+import 'package:soundmeter/songs.dart';
 
 void main() {
   runApp(const MyApp());
@@ -41,12 +45,26 @@ class _AppState extends State<App> {
   double minDecibels = -72.0;
   double maxDecibels = -10.0;
   double currentDecibels = -90.0;
+  double currentLoudness = 0.0;
+
+  Song? currentSong;
+  int index = 0;
+  double position = 0;
+  bool complete = false;
+
+  Timer? timer;
+
+  final songs = [nephisCourage1, nephisCourage2];
 
   @override
   void initState() {
     setupMicrophone();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       showHelpDialog();
+    });
+
+    Timer.periodic(const Duration(milliseconds: 250), (timer) {
+      updateX(context);
     });
 
     super.initState();
@@ -56,7 +74,10 @@ class _AppState extends State<App> {
     if (await record.hasPermission()) {
       stream = await record.startStream(const RecordConfig(encoder: AudioEncoder.pcm16bits));
       stream!.listen((event) {
-        setState(() => currentDecibels = calculateDecibels(event));
+        setState(() {
+          currentDecibels = calculateDecibels(event);
+          currentLoudness = calculateLoudness(event);
+        });
       });
       setState(() {});
     }
@@ -102,146 +123,248 @@ class _AppState extends State<App> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF304060),
-      body: stream == null
-          ? const Center(
-              child: Text('Accessing mic...'),
-            )
-          : StreamBuilder(
-              stream: stream,
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(
-                    child: Text('No data'),
-                  );
-                }
+    return Focus(
+      autofocus: true,
+      onKey: (FocusNode node, RawKeyEvent event) {
+        if (event is RawKeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.space) {
+            if (currentSong != null) {
+              if (index < currentSong!.lines.length - 1) {
+                setState(() {
+                  index++;
+                });
+              } else if (songs.indexOf(currentSong!) < songs.length - 1) {
+                setState(() {
+                  currentSong = songs[songs.indexOf(currentSong!) + 1];
+                  complete = false;
+                  index = 0;
+                  position = 0.0;
+                });
+              } else {
+                setState(() {
+                  currentSong = null;
+                  complete = false;
+                });
+              }
+            }
 
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const Expanded(
-                      child: Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(24.0),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Primary Sound Meter',
-                                style: TextStyle(fontSize: 22),
-                              ),
-                              SizedBox(height: 24.0),
-                              Text(
-                                '“For my soul delighteth in the song of the heart;\n'
-                                'yea, the song of the righteous is a prayer unto me,\n'
-                                'and it shall be answered with a blessing upon their heads."\n\n'
-                                '- Doctrine & Covenants 25:12',
-                                style: TextStyle(
-                                  fontStyle: FontStyle.italic,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          title: currentSong == null ? null : Text(currentSong!.title),
+          leading: Builder(builder: (context) {
+            return IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () {
+                Scaffold.of(context).openDrawer();
+              },
+            );
+          }),
+          actions: [
+            IconButton(
+              onPressed: () {
+                showHelpDialog();
+              },
+              icon: const Icon(Icons.help_outline),
+            ),
+          ],
+        ),
+        drawer: Drawer(
+          width: 400,
+          child: ListView(
+            children: [
+              const SizedBox(
+                height: 200,
+                child: DrawerHeader(
+                  decoration: BoxDecoration(
+                    color: Color(0xFF304060),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Primary Sound Meter',
+                        style: TextStyle(fontSize: 24),
+                      ),
+                      SizedBox(height: 12.0),
+                      Text(
+                        '“For my soul delighteth in the song of the heart;\n'
+                        'yea, the song of the righteous is a prayer unto me,\n'
+                        'and it shall be answered with a blessing upon their heads."\n\n'
+                        '- Doctrine & Covenants 25:12',
+                        style: TextStyle(
+                          fontStyle: FontStyle.italic,
+                          fontSize: 12,
                         ),
                       ),
-                    ),
-                    Container(
-                      width: 150,
-                      height: MediaQuery.of(context).size.height * 0.9,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(80.0),
+                    ],
+                  ),
+                ),
+              ),
+              ListTile(
+                title: const Text('No song'),
+                onTap: () {
+                  setState(() {
+                    currentSong = null;
+                  });
+                  Navigator.of(context).pop();
+                },
+              ),
+              for (var song in songs)
+                ListTile(
+                  title: Text(song.title),
+                  onTap: () {
+                    setState(() {
+                      currentSong = song;
+                      index = 0;
+                    });
+                    Navigator.of(context).pop();
+                  },
+                ),
+              const Divider(),
+              ListTile(
+                title: const Text('Help'),
+                onTap: () {
+                  showHelpDialog();
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          ),
+        ),
+        backgroundColor: const Color(0xFF304060),
+        body: stream == null
+            ? const Center(
+                child: Text('Accessing mic...'),
+              )
+            : StreamBuilder(
+                stream: stream,
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(
+                      child: Text('No data'),
+                    );
+                  }
+
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: currentSong != null
+                            ? AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 300),
+                                child: Padding(
+                                  key: ValueKey(index),
+                                  padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Image.asset(
+                                        'assets/${currentSong!.pictures[index]}',
+                                        height: 250,
+                                      ),
+                                      const SizedBox(width: 24),
+                                      Text(
+                                        currentSong!.lines[index],
+                                        style: const TextStyle(fontSize: 36),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : const SizedBox(),
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(80.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
+                      Positioned.fill(
+                        child: Stack(
                           children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              height: MediaQuery.of(context).size.height * 0.9 * calculateLoudness(snapshot.data!),
-                              decoration: BoxDecoration(
-                                color: getColor(calculateLoudness(snapshot.data!)),
+                            Center(child: SemiCircleMeter(value: calculateLoudness(snapshot.data!))),
+                            Center(
+                              child: Text(
+                                getLoudnessText(calculateLoudness(snapshot.data!)),
+                                style: const TextStyle(fontSize: 40),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                    Expanded(
-                      child: Stack(
-                        children: [
-                          Positioned(
-                            top: 0,
-                            bottom: 0,
-                            left: 100,
-                            child: Center(
-                              child: Text(
-                                getLoudnessText(calculateLoudness(snapshot.data!)),
-                                style: const TextStyle(fontSize: 56),
+                      if (currentSong == null)
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TextButton.icon(
+                                label: const Text('Set silent'),
+                                onPressed: () {
+                                  setState(() => minDecibels = currentDecibels);
+                                },
+                                icon: const Icon(Icons.volume_mute_outlined),
                               ),
+                              TextButton.icon(
+                                label: const Text('Set loud'),
+                                onPressed: () {
+                                  setState(() => maxDecibels = currentDecibels);
+                                },
+                                icon: const Icon(Icons.volume_up_outlined),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (currentSong != null)
+                        AnimatedPositioned(
+                          duration: const Duration(milliseconds: 500),
+                          left: position,
+                          bottom: 0,
+                          child: Image.asset(
+                            'assets/${currentSong!.pictures[0]}',
+                            height: 200,
+                          ),
+                        ),
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: AnimatedOpacity(
+                            opacity: complete ? 1 : 0,
+                            duration: const Duration(milliseconds: 500),
+                            child: Image.asset(
+                              'assets/confetti.gif',
+                              fit: BoxFit.cover,
                             ),
                           ),
-                          Positioned(
-                            right: 0,
-                            top: 0,
-                            bottom: 0,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                IconButton(
-                                  onPressed: () {
-                                    showHelpDialog();
-                                  },
-                                  icon: const Icon(Icons.help_outline),
-                                ),
-                                Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    TextButton.icon(
-                                      label: const Text('Set silent'),
-                                      onPressed: () {
-                                        setState(() => minDecibels = currentDecibels);
-                                      },
-                                      icon: const Icon(Icons.volume_mute_outlined),
-                                    ),
-                                    TextButton.icon(
-                                      label: const Text('Set loud'),
-                                      onPressed: () {
-                                        setState(() => maxDecibels = currentDecibels);
-                                      },
-                                      icon: const Icon(Icons.volume_up_outlined),
-                                    ),
-                                  ],
-                                )
-                              ],
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              },
-            ),
+                    ],
+                  );
+                },
+              ),
+      ),
     );
   }
 
-  Color getColor(double loudness) {
-    if (loudness < 0.2) {
-      return Colors.lightBlue;
-    } else if (loudness < 0.5) {
-      return Colors.green;
-    } else if (loudness < 0.9) {
-      return const Color(0xFFFFA570);
-    } else {
-      return Colors.red;
-    }
+  void updateX(BuildContext context) {
+    if (currentSong == null) return;
+
+    final end = MediaQuery.of(context).size.width - 200;
+    final amountForQuarterSecond = end / 160;
+    final multiplier = currentLoudness * 1.5;
+    final amount = amountForQuarterSecond * multiplier;
+    setState(() {
+      position = position + amount;
+      if (position >= end) {
+        position = end;
+        complete = true;
+      }
+    });
   }
 
   String getLoudnessText(double loudness) {
@@ -293,6 +416,7 @@ class _AppState extends State<App> {
   @override
   void dispose() {
     record.dispose();
+    timer?.cancel();
     super.dispose();
   }
 }
